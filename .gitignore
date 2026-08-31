@@ -1,0 +1,12 @@
+.venv/
+.idea/
+__pycache__/
+*.pyc
+.DS_Store
+
+# Streamlit / Python cache
+.streamlit/
+.pytest_cache/
+
+# Local temporary files
+*.log
