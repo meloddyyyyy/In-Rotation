@@ -60,9 +60,9 @@ CANDIDATE_PIPELINE = [
 
     "15_candidate_google_collector.py",
 
-    "16_candidate_ranker.py",
-
     "14_candidate_validation.py",
+
+    "16_candidate_ranker.py",
 ]
 
 
@@ -145,7 +145,7 @@ def main():
     )
 
     print(
-        "TRENDPULSE DATA PIPELINE"
+        "IN ROTATION DATA PIPELINE"
     )
 
     print(
@@ -289,7 +289,7 @@ def main():
     )
 
     print(
-        "TRENDPULSE UPDATE COMPLETE"
+        "IN ROTATION UPDATE COMPLETE"
     )
 
     print(
