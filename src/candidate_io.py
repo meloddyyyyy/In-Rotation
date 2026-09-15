@@ -6,8 +6,8 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 DATA_DIR = BASE_DIR / "data"
 
 DEFAULT_CANDIDATE_PATHS = [
-    DATA_DIR / "candidate_pool.csv",
     DATA_DIR / "processed" / "candidate_pool.csv",
+    DATA_DIR / "candidate_pool.csv",
     DATA_DIR / "trend_candidates_v2.csv",
 ]
 
