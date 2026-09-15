@@ -24,7 +24,7 @@ def safe_read(path):
 
 
 def clean_text(series):
-    return series.astype(str).str.strip().str.lower()
+    return series.fillna("").astype(str).str.strip().str.lower()
 
 
 def source_frame(df, trend_candidates, category_candidates, source_name):
@@ -53,8 +53,7 @@ def source_frame(df, trend_candidates, category_candidates, source_name):
     result["Candidate_Source"] = source_name
 
     result = result[
-        result["Trend"].notna()
-        & (result["Trend"] != "")
+        (result["Trend"] != "")
         & (result["Trend"] != "nan")
     ].copy()
     return result
@@ -171,7 +170,10 @@ if not pinterest_signal.empty:
             pool["Pinterest_Stage"] = pool["Pinterest_Stage_New"]
             pool = pool.drop(columns=["Pinterest_Stage_New"])
 
-pool["Editorial_Evidence"] = pool.get("Mentions_30D", pd.Series(index=pool.index, dtype="float64")).notna()
+if "Mentions_30D" in pool.columns:
+    pool["Editorial_Evidence"] = pool["Mentions_30D"].notna()
+else:
+    pool["Editorial_Evidence"] = False
 pool["Pinterest_Evidence"] = pd.to_numeric(pool["Pinterest_Score"], errors="coerce").notna()
 
 pool = pool.sort_values(["Category", "Trend"], na_position="last").reset_index(drop=True)
