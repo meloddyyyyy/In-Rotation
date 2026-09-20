@@ -25,6 +25,7 @@ CANDIDATE_PIPELINE = [
     "17_candidate_pool.py",
     "18_candidate_editorial_collector.py",
     "15_candidate_google_collector.py",
+    "19_candidate_visual_collector.py",
     "14_candidate_validation.py",
     "16_candidate_ranker.py",
 ]
