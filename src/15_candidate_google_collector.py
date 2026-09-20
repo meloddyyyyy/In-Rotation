@@ -4,10 +4,11 @@ from pathlib import Path
 import pandas as pd
 from pytrends_modern import TrendReq
 
+from candidate_io import load_candidate_pool
+
 BASE_DIR = Path(__file__).resolve().parent.parent
 DATA_DIR = BASE_DIR / "data"
 RAW_DIR = DATA_DIR / "raw"
-CANDIDATE_FILE = DATA_DIR / "trend_candidates_v2.csv"
 ALIAS_FILE = DATA_DIR / "trend_aliases.csv"
 OUTPUT_FILE = RAW_DIR / "candidate_google_trends.csv"
 
@@ -16,12 +17,15 @@ GEO = "US"
 REQUEST_DELAY = 3
 MAX_RETRIES = 3
 
-candidates = pd.read_csv(CANDIDATE_FILE)
+candidates, candidate_source = load_candidate_pool()
 aliases = pd.read_csv(ALIAS_FILE)
 
 candidates["Trend"] = candidates["Trend"].astype(str).str.strip().str.lower()
 aliases["Trend"] = aliases["Trend"].astype(str).str.strip().str.lower()
 aliases["Alias"] = aliases["Alias"].astype(str).str.strip()
+
+print(f"\nCandidate source: {candidate_source}")
+print(f"Candidates to validate with Google Trends: {len(candidates)}")
 
 client = TrendReq(
     hl="en-US",
@@ -72,7 +76,6 @@ for _, candidate_row in candidates.iterrows():
     selected_alias = None
     selected_data = None
 
-    # Try narrow/explicit aliases first; broad aliases last.
     alias_rows["priority"] = alias_rows["Alias_Type"].map(
         {"canonical": 0, "alternate": 1, "fallback": 2, "broad": 3}
     ).fillna(2)
@@ -92,7 +95,6 @@ for _, candidate_row in candidates.iterrows():
             selected_data = data
             break
 
-        # Keep the first returned series as a fallback so zero evidence is recorded honestly.
         if selected_data is None:
             selected_alias = alias
             selected_data = data

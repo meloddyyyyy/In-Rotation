@@ -311,6 +311,26 @@ FASHION_DESCRIPTORS = {
     "straight"
 }
 
+INVALID_CANDIDATES = {
+    "two shoes",
+    "low top",
+    "high top",
+}
+
+
+def is_valid_candidate(candidate):
+    candidate = str(candidate).strip().lower()
+
+    if candidate in INVALID_CANDIDATES:
+        return False
+
+    # Numeric-like headline fragments such as "two shoe styles" are not trends.
+    # Keep the legitimate fashion phrase "two tone ...".
+    if candidate.startswith("two ") and not candidate.startswith("two tone "):
+        return False
+
+    return True
+
 
 # ==================================================
 # 7. RSS fetch
@@ -455,6 +475,9 @@ def extract_candidates(title):
         ):
             continue
 
+        if not is_valid_candidate(candidate):
+            continue
+
         candidates.append(
             candidate
         )
@@ -494,6 +517,11 @@ today = datetime.now(
 # 11. Search articles
 # ==================================================
 
+# De-duplicate the same article across different discovery queries.
+# Previously the same headline could be counted once under "shoe trends"
+# and again under "footwear trends", artificially creating 2 mentions.
+global_seen_titles = set()
+
 for query in DISCOVERY_QUERIES:
 
     print(
@@ -506,8 +534,6 @@ for query in DISCOVERY_QUERIES:
 
     if feed is None:
         continue
-
-    seen_titles = set()
 
     for article in feed.entries:
 
@@ -574,10 +600,10 @@ for query in DISCOVERY_QUERIES:
             + title
         )
 
-        if unique_key in seen_titles:
+        if unique_key in global_seen_titles:
             continue
 
-        seen_titles.add(
+        global_seen_titles.add(
             unique_key
         )
 

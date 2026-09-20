@@ -2,10 +2,14 @@ from pathlib import Path
 
 import pandas as pd
 
+from candidate_io import load_candidate_pool
+
 BASE_DIR = Path(__file__).resolve().parent.parent
 DATA_DIR = BASE_DIR / "data"
 RAW_FILE = DATA_DIR / "raw" / "candidate_google_trends.csv"
-EDITORIAL_FILE = DATA_DIR / "trend_candidates.csv"
+EDITORIAL_SUMMARY_FILE = DATA_DIR / "processed" / "candidate_editorial_summary.csv"
+EDITORIAL_FALLBACK_FILE = DATA_DIR / "trend_candidates.csv"
+VISUAL_SUMMARY_FILE = DATA_DIR / "processed" / "candidate_visual_summary.csv"
 PINTEREST_FILE = DATA_DIR / "pinterest_signal.csv"
 OUTPUT_FILE = DATA_DIR / "processed" / "candidate_validation.csv"
 
@@ -20,7 +24,10 @@ def safe_read(path):
 
 
 google = safe_read(RAW_FILE)
-editorial = safe_read(EDITORIAL_FILE)
+editorial = safe_read(EDITORIAL_SUMMARY_FILE)
+if editorial.empty:
+    editorial = safe_read(EDITORIAL_FALLBACK_FILE)
+visual = safe_read(VISUAL_SUMMARY_FILE)
 pinterest = safe_read(PINTEREST_FILE)
 
 if google.empty:
@@ -82,23 +89,98 @@ for trend, group in google.groupby("Trend", dropna=False):
 
 result = pd.DataFrame(rows)
 
-# Editorial confirmation from the existing discovery pipeline.
-if not editorial.empty and "Candidate" in editorial.columns:
-    editorial_copy = editorial.copy()
-    editorial_copy["Trend"] = editorial_copy["Candidate"].astype(str).str.lower().str.strip()
-    editorial_cols = ["Trend"]
-    for col in ["Mentions_30D", "Unique_Sources", "Authority_Score", "Priority"]:
-        if col in editorial_copy.columns:
-            editorial_cols.append(col)
-    editorial_copy = editorial_copy[editorial_cols].drop_duplicates("Trend")
-    result = result.merge(editorial_copy, on="Trend", how="left")
+# Keep validation aligned to the current candidate universe so stale rows from
+# older Google/visual CSVs cannot re-enter the ranking after a quality-gate change.
+current_candidates, _ = load_candidate_pool()
+current_trends = set(
+    current_candidates["Trend"].astype(str).str.lower().str.strip()
+)
+result = result[
+    result["Trend"].astype(str).str.lower().str.strip().isin(current_trends)
+].copy()
 
-if "Mentions_30D" not in result.columns:
-    result["Mentions_30D"] = pd.NA
-if "Unique_Sources" not in result.columns:
-    result["Unique_Sources"] = pd.NA
-if "Authority_Score" not in result.columns:
-    result["Authority_Score"] = pd.NA
+# Prefer the dedicated editorial evidence collector; fall back to the original
+# discovery output so the experimental pipeline remains non-blocking.
+if not editorial.empty:
+    editorial_copy = editorial.copy()
+
+    if "Trend" not in editorial_copy.columns and "Candidate" in editorial_copy.columns:
+        editorial_copy["Trend"] = editorial_copy["Candidate"]
+
+    if "Trend" in editorial_copy.columns:
+        editorial_copy["Trend"] = (
+            editorial_copy["Trend"].astype(str).str.lower().str.strip()
+        )
+        editorial_cols = ["Trend"]
+        for col in [
+            "Mentions_30D",
+            "Unique_Sources",
+            "Authority_Score",
+            "Quality_Adjusted_Mentions",
+            "High_Quality_Mentions",
+            "Medium_Quality_Mentions",
+            "Low_Quality_Mentions",
+            "Editorial_Evidence_Quality",
+            "Editorial_Search_Mode",
+            "Priority",
+            "Latest_Mention_Days_Ago",
+            "Editorial_Sources",
+            "Example_Title",
+            "Editorial_Collection_Status",
+        ]:
+            if col in editorial_copy.columns:
+                editorial_cols.append(col)
+
+        editorial_copy = editorial_copy[editorial_cols].drop_duplicates("Trend")
+        result = result.merge(editorial_copy, on="Trend", how="left")
+
+for col in [
+    "Mentions_30D",
+    "Unique_Sources",
+    "Authority_Score",
+    "Quality_Adjusted_Mentions",
+    "High_Quality_Mentions",
+    "Medium_Quality_Mentions",
+    "Low_Quality_Mentions",
+]:
+    if col not in result.columns:
+        result[col] = pd.NA
+
+for col in ["Editorial_Evidence_Quality", "Editorial_Search_Mode"]:
+    if col not in result.columns:
+        result[col] = pd.NA
+
+if "Editorial_Collection_Status" not in result.columns:
+    result["Editorial_Collection_Status"] = pd.NA
+if "Editorial_Sources" not in result.columns:
+    result["Editorial_Sources"] = pd.NA
+if "Latest_Mention_Days_Ago" not in result.columns:
+    result["Latest_Mention_Days_Ago"] = pd.NA
+if "Example_Title" not in result.columns:
+    result["Example_Title"] = pd.NA
+
+# Candidate-level visual evidence from Google Image Trends.
+visual_columns = [
+    "Trend",
+    "Visual_Search_Term_Used",
+    "Visual_Recent_4W",
+    "Visual_Previous_4W",
+    "Visual_Growth",
+    "Visual_Score",
+    "Visual_Stage",
+    "Visual_Data_Status",
+]
+
+if not visual.empty and "Trend" in visual.columns:
+    visual_copy = visual.copy()
+    visual_copy["Trend"] = visual_copy["Trend"].astype(str).str.lower().str.strip()
+    keep = [col for col in visual_columns if col in visual_copy.columns]
+    visual_copy = visual_copy[keep].drop_duplicates("Trend")
+    result = result.merge(visual_copy, on="Trend", how="left")
+
+for col in visual_columns[1:]:
+    if col not in result.columns:
+        result[col] = pd.NA
 
 # Pinterest remains missing if there is no real Pinterest data.
 result["Pinterest_Score"] = pd.NA
@@ -124,3 +206,11 @@ result.to_csv(OUTPUT_FILE, index=False)
 print("\nSaved:", OUTPUT_FILE)
 print("Candidates validated:", len(result))
 print(result["Google_Data_Status"].value_counts(dropna=False))
+
+if "Editorial_Collection_Status" in result.columns:
+    print("\nEditorial status:")
+    print(result["Editorial_Collection_Status"].value_counts(dropna=False))
+
+if "Visual_Data_Status" in result.columns:
+    print("\nVisual status:")
+    print(result["Visual_Data_Status"].value_counts(dropna=False))
