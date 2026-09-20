@@ -102,6 +102,12 @@ if not editorial.empty:
             "Mentions_30D",
             "Unique_Sources",
             "Authority_Score",
+            "Quality_Adjusted_Mentions",
+            "High_Quality_Mentions",
+            "Medium_Quality_Mentions",
+            "Low_Quality_Mentions",
+            "Editorial_Evidence_Quality",
+            "Editorial_Search_Mode",
             "Priority",
             "Latest_Mention_Days_Ago",
             "Editorial_Sources",
@@ -114,7 +120,19 @@ if not editorial.empty:
         editorial_copy = editorial_copy[editorial_cols].drop_duplicates("Trend")
         result = result.merge(editorial_copy, on="Trend", how="left")
 
-for col in ["Mentions_30D", "Unique_Sources", "Authority_Score"]:
+for col in [
+    "Mentions_30D",
+    "Unique_Sources",
+    "Authority_Score",
+    "Quality_Adjusted_Mentions",
+    "High_Quality_Mentions",
+    "Medium_Quality_Mentions",
+    "Low_Quality_Mentions",
+]:
+    if col not in result.columns:
+        result[col] = pd.NA
+
+for col in ["Editorial_Evidence_Quality", "Editorial_Search_Mode"]:
     if col not in result.columns:
         result[col] = pd.NA
 
