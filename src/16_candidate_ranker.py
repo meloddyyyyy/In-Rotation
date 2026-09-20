@@ -53,18 +53,48 @@ def google_component(row):
 
 def editorial_component(row):
     mentions = row.get("Mentions_30D")
+    quality_mentions = row.get("Quality_Adjusted_Mentions")
     sources = row.get("Unique_Sources")
     authority = row.get("Authority_Score")
+    quality = row.get("Editorial_Evidence_Quality")
+    search_mode = row.get("Editorial_Search_Mode")
 
-    if pd.isna(mentions) and pd.isna(sources) and pd.isna(authority):
+    if (
+        pd.isna(mentions)
+        and pd.isna(quality_mentions)
+        and pd.isna(sources)
+        and pd.isna(authority)
+    ):
         return np.nan
 
-    mentions = 0 if pd.isna(mentions) else float(mentions)
+    # Prefer quality-adjusted mentions from Editorial Evidence v3.
+    # Fall back to raw mentions only for older files.
+    if pd.isna(quality_mentions):
+        quality_mentions = 0 if pd.isna(mentions) else float(mentions)
+    else:
+        quality_mentions = float(quality_mentions)
+
     sources = 0 if pd.isna(sources) else float(sources)
     authority = 0 if pd.isna(authority) else float(authority)
 
-    score = min(100.0, mentions * 8 + sources * 18 + authority * 2)
-    return round(score, 2)
+    raw_score = min(
+        100.0,
+        quality_mentions * 10
+        + sources * 16
+        + authority * 2,
+    )
+
+    quality_multiplier = {
+        "STRONG": 1.00,
+        "MODERATE": 0.82,
+        "WEAK": 0.50,
+    }.get(str(quality).upper(), 0.75)
+
+    # Relaxed search is useful for recall, but carries slightly less confidence.
+    search_multiplier = 0.92 if str(search_mode).lower() == "relaxed" else 1.0
+
+    score = raw_score * quality_multiplier * search_multiplier
+    return round(min(100.0, score), 2)
 
 
 df["Google_Score"] = df.apply(google_component, axis=1)
@@ -96,7 +126,9 @@ def evidence_count(row):
     count = 0
     if pd.notna(row.get("Google_Score")):
         count += 1
-    if pd.notna(row.get("Editorial_Score")):
+    editorial_score = row.get("Editorial_Score")
+    editorial_quality = str(row.get("Editorial_Evidence_Quality", "")).upper()
+    if pd.notna(editorial_score) and editorial_quality in {"STRONG", "MODERATE"}:
         count += 1
     if pd.notna(row.get("Pinterest_Score")):
         count += 1
@@ -146,7 +178,13 @@ output_columns = [
     "Google_Growth",
     "Google_Data_Status",
     "Mentions_30D",
+    "Quality_Adjusted_Mentions",
+    "High_Quality_Mentions",
+    "Medium_Quality_Mentions",
+    "Low_Quality_Mentions",
     "Unique_Sources",
+    "Editorial_Evidence_Quality",
+    "Editorial_Search_Mode",
     "Editorial_Score",
     "Pinterest_Score",
     "Evidence_Count",
