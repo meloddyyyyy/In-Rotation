@@ -27,6 +27,25 @@ def clean_text(series):
     return series.fillna("").astype(str).str.strip().str.lower()
 
 
+INVALID_CANDIDATES = {
+    "two shoes",
+    "low top",
+    "high top",
+}
+
+
+def is_valid_candidate(candidate):
+    candidate = str(candidate).strip().lower()
+
+    if candidate in INVALID_CANDIDATES:
+        return False
+
+    if candidate.startswith("two ") and not candidate.startswith("two tone "):
+        return False
+
+    return True
+
+
 def source_frame(df, trend_candidates, category_candidates, source_name):
     if df.empty:
         return pd.DataFrame(columns=["Trend", "Category", "Candidate_Source"])
@@ -56,6 +75,10 @@ def source_frame(df, trend_candidates, category_candidates, source_name):
         (result["Trend"] != "")
         & (result["Trend"] != "nan")
     ].copy()
+
+    # Defense-in-depth: reject known extraction artifacts even if an older
+    # trend_candidates.csv is still present locally.
+    result = result[result["Trend"].apply(is_valid_candidate)].copy()
     return result
 
 
