@@ -2,6 +2,8 @@ from pathlib import Path
 
 import pandas as pd
 
+from candidate_io import load_candidate_pool
+
 BASE_DIR = Path(__file__).resolve().parent.parent
 DATA_DIR = BASE_DIR / "data"
 RAW_FILE = DATA_DIR / "raw" / "candidate_google_trends.csv"
@@ -86,6 +88,16 @@ for trend, group in google.groupby("Trend", dropna=False):
     )
 
 result = pd.DataFrame(rows)
+
+# Keep validation aligned to the current candidate universe so stale rows from
+# older Google/visual CSVs cannot re-enter the ranking after a quality-gate change.
+current_candidates, _ = load_candidate_pool()
+current_trends = set(
+    current_candidates["Trend"].astype(str).str.lower().str.strip()
+)
+result = result[
+    result["Trend"].astype(str).str.lower().str.strip().isin(current_trends)
+].copy()
 
 # Prefer the dedicated editorial evidence collector; fall back to the original
 # discovery output so the experimental pipeline remains non-blocking.
