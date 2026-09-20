@@ -100,6 +100,7 @@ def editorial_component(row):
 df["Google_Score"] = df.apply(google_component, axis=1)
 df["Editorial_Score"] = df.apply(editorial_component, axis=1)
 
+df["Visual_Score"] = pd.to_numeric(df.get("Visual_Score"), errors="coerce")
 df["Pinterest_Score"] = pd.to_numeric(df.get("Pinterest_Score"), errors="coerce")
 
 
@@ -107,9 +108,17 @@ def combine_scores(row):
     components = {
         "google": row.get("Google_Score"),
         "editorial": row.get("Editorial_Score"),
+        "visual": row.get("Visual_Score"),
         "pinterest": row.get("Pinterest_Score"),
     }
-    weights = {"google": 0.5, "editorial": 0.3, "pinterest": 0.2}
+    # Re-normalized automatically when a source is missing.
+    # Pinterest remains optional until a stable direct collector exists.
+    weights = {
+        "google": 0.40,
+        "editorial": 0.30,
+        "visual": 0.20,
+        "pinterest": 0.10,
+    }
 
     usable = {k: v for k, v in components.items() if pd.notna(v)}
     if not usable:
@@ -130,6 +139,8 @@ def evidence_count(row):
     editorial_quality = str(row.get("Editorial_Evidence_Quality", "")).upper()
     if pd.notna(editorial_score) and editorial_quality in {"STRONG", "MODERATE"}:
         count += 1
+    if pd.notna(row.get("Visual_Score")):
+        count += 1
     if pd.notna(row.get("Pinterest_Score")):
         count += 1
     return count
@@ -145,6 +156,7 @@ def classify(row):
     google_growth = row.get("Google_Growth")
     editorial = row.get("Editorial_Score")
     editorial_quality = str(row.get("Editorial_Evidence_Quality", "")).upper()
+    visual = row.get("Visual_Score")
     pinterest = row.get("Pinterest_Score")
 
     if evidence == 0 or pd.isna(score):
@@ -156,7 +168,7 @@ def classify(row):
         return "LOW EVIDENCE"
 
     non_google_strength = max(
-        [v for v in [editorial, pinterest] if pd.notna(v)] or [np.nan]
+        [v for v in [editorial, visual, pinterest] if pd.notna(v)] or [np.nan]
     )
 
     if google_status in {"Low Signal", "Insufficient Data"} and pd.notna(non_google_strength):
@@ -209,6 +221,12 @@ output_columns = [
     "Editorial_Evidence_Quality",
     "Editorial_Search_Mode",
     "Editorial_Score",
+    "Visual_Search_Term_Used",
+    "Visual_Recent_4W",
+    "Visual_Growth",
+    "Visual_Data_Status",
+    "Visual_Stage",
+    "Visual_Score",
     "Pinterest_Score",
     "Evidence_Count",
     "Google_Score",
