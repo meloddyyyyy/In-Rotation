@@ -142,10 +142,17 @@ def classify(row):
     score = row.get("Candidate_Score")
     evidence = row.get("Evidence_Count", 0)
     google_status = row.get("Google_Data_Status")
+    google_growth = row.get("Google_Growth")
     editorial = row.get("Editorial_Score")
+    editorial_quality = str(row.get("Editorial_Evidence_Quality", "")).upper()
     pinterest = row.get("Pinterest_Score")
 
     if evidence == 0 or pd.isna(score):
+        return "LOW EVIDENCE"
+
+    # A single source can be interesting, but it is not cross-source confirmation.
+    # Keep it visible without promoting it to WATCH.
+    if evidence == 1:
         return "LOW EVIDENCE"
 
     non_google_strength = max(
@@ -156,14 +163,30 @@ def classify(row):
         if non_google_strength >= 60:
             return "NICHE / EARLY SIGNAL"
 
-    if evidence >= 2 and score >= 70:
+    # Strong editorial coverage + materially falling search interest usually means
+    # the idea is established or cooling, not invalid.
+    if (
+        pd.notna(google_growth)
+        and float(google_growth) <= -15
+        and editorial_quality == "STRONG"
+    ):
+        return "COOLING / ESTABLISHED"
+
+    if score >= 70:
         return "EMERGING"
 
     if score >= 50:
         return "WATCH"
 
-    if evidence == 1:
-        return "LOW EVIDENCE"
+    # Borderline cross-source candidates can still be worth watching when search
+    # demand is clearly rising and editorial evidence is at least moderate.
+    if (
+        score >= 45
+        and pd.notna(google_growth)
+        and float(google_growth) >= 10
+        and editorial_quality in {"STRONG", "MODERATE"}
+    ):
+        return "WATCH"
 
     return "REJECT"
 
