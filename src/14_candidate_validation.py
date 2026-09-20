@@ -7,6 +7,7 @@ DATA_DIR = BASE_DIR / "data"
 RAW_FILE = DATA_DIR / "raw" / "candidate_google_trends.csv"
 EDITORIAL_SUMMARY_FILE = DATA_DIR / "processed" / "candidate_editorial_summary.csv"
 EDITORIAL_FALLBACK_FILE = DATA_DIR / "trend_candidates.csv"
+VISUAL_SUMMARY_FILE = DATA_DIR / "processed" / "candidate_visual_summary.csv"
 PINTEREST_FILE = DATA_DIR / "pinterest_signal.csv"
 OUTPUT_FILE = DATA_DIR / "processed" / "candidate_validation.csv"
 
@@ -24,6 +25,7 @@ google = safe_read(RAW_FILE)
 editorial = safe_read(EDITORIAL_SUMMARY_FILE)
 if editorial.empty:
     editorial = safe_read(EDITORIAL_FALLBACK_FILE)
+visual = safe_read(VISUAL_SUMMARY_FILE)
 pinterest = safe_read(PINTEREST_FILE)
 
 if google.empty:
@@ -145,6 +147,29 @@ if "Latest_Mention_Days_Ago" not in result.columns:
 if "Example_Title" not in result.columns:
     result["Example_Title"] = pd.NA
 
+# Candidate-level visual evidence from Google Image Trends.
+visual_columns = [
+    "Trend",
+    "Visual_Search_Term_Used",
+    "Visual_Recent_4W",
+    "Visual_Previous_4W",
+    "Visual_Growth",
+    "Visual_Score",
+    "Visual_Stage",
+    "Visual_Data_Status",
+]
+
+if not visual.empty and "Trend" in visual.columns:
+    visual_copy = visual.copy()
+    visual_copy["Trend"] = visual_copy["Trend"].astype(str).str.lower().str.strip()
+    keep = [col for col in visual_columns if col in visual_copy.columns]
+    visual_copy = visual_copy[keep].drop_duplicates("Trend")
+    result = result.merge(visual_copy, on="Trend", how="left")
+
+for col in visual_columns[1:]:
+    if col not in result.columns:
+        result[col] = pd.NA
+
 # Pinterest remains missing if there is no real Pinterest data.
 result["Pinterest_Score"] = pd.NA
 result["Pinterest_Stage"] = pd.NA
@@ -173,3 +198,7 @@ print(result["Google_Data_Status"].value_counts(dropna=False))
 if "Editorial_Collection_Status" in result.columns:
     print("\nEditorial status:")
     print(result["Editorial_Collection_Status"].value_counts(dropna=False))
+
+if "Visual_Data_Status" in result.columns:
+    print("\nVisual status:")
+    print(result["Visual_Data_Status"].value_counts(dropna=False))
