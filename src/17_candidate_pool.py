@@ -31,6 +31,7 @@ INVALID_CANDIDATES = {
     "two shoes",
     "low top",
     "high top",
+    "blue jeans",
 }
 
 
